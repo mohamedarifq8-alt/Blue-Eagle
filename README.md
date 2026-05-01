@@ -3,52 +3,64 @@
 **Blue Eagle** is a custom-designed drone project developed within the **Webots** robotics simulator. Inspired by the Mavic 2 Pro, this project features a ground-up implementation of a **PID Control System** written in **Python** to achieve stable autonomous flight and altitude hold.
 
 ## 🛸 Project Overview
-The project focuses on building an automated system capable of recognizing handwritten digits (0-9). As a **Computer and Control Engineer**, the implementation emphasizes not just accuracy, but also the stability of the training process and the robustness of the model architecture.
+The project focuses on building a robust flight controller for a quadcopter. As a **Computer and Control Engineer**, the implementation emphasizes the mathematical modeling of flight dynamics, sensor fusion, and precise motor speed modulation to maintain equilibrium and reach target altitudes.
 
 ---
 
 ### 📸 Visual Documentation
 
 #### 1. Drone Design (Blue Eagle)
-This is the customized model design in the Webots environment, optimized for stability and physical accuracy.
-![Blue Eagle Design](./images/drone_design.png)
+The customized model design within Webots, specifically configured with a custom Inertial Unit and Propeller physics.
+![Blue Eagle Design](./protos/Screenshot%202026-04-24%20031539.png)
 
 #### 2. Autonomous Flight Test
-The drone performing an autonomous take-off and maintaining a stable hover at a target altitude of 20 meters using the PID controller.
-![Blue Eagle In Flight](./images/drone_flight.png)
+The drone maintains a stable hover at a target altitude of 20 meters, demonstrating the effectiveness of the PD control loop.
+![Blue Eagle In Flight](./protos/Screenshot%202026-05-02%20001558.png)
 
 ---
 
-## 🏗 Network Architecture & Engineering Design
-The model was designed using a `Sequential` structure with a focus on feature extraction and regularization:
-*   **Feature Extraction:** Utilized `Conv2d` layers to capture spatial hierarchies in the images.
-*   **Stability:** Integrated `BatchNorm2d` layers after convolutions to stabilize the hidden state distributions and accelerate convergence.
-*   **Non-Linearity:** Used `ReLU` activation functions to enable the model to learn complex patterns.
-*   **Dimensionality Reduction:** Employed `MaxPool2d` for spatial downsampling while retaining essential features.
-*   **Generalization (Regularization):** Applied `Dropout` layers to mitigate overfitting, ensuring the model performs well on unseen test data.
+## 🏗 Control System Architecture
 
-## 🛠 Technical Implementation & Tools
-The project leverages the full power of the PyTorch ecosystem and Python data science stack:
-*   **Core Framework:** `torch` & `torch.nn` for model building.
-*   **Data Pipeline:** `DataLoader` and `TensorDataset` for efficient batching and memory management.
-*   **Preprocessing:** `pandas` and `sklearn` for data splitting and normalization.
-*   **Visualization:** `seaborn` and `matplotlib` for analyzing the training curves and error distribution.
+The flight controller is built using a Class-based structure (`Mavic2ProController`) that manages the sense-think-act cycle:
 
-## 📈 Optimization & Control Strategy
-In line with control engineering principles, the training process was treated as an optimization problem:
-*   **Optimizer:** Used the **Adam** optimizer for its adaptive learning rate capabilities.
-*   **Loss Function:** **CrossEntropyLoss** was chosen as the objective function for multi-class classification.
-*   **Dynamic Feedback:** Implemented a **Learning Rate Scheduler** (`ReduceLROnPlateau`). This mimics a closed-loop system where the "system" (the model) monitors the validation loss and automatically reduces the learning rate when the improvement stalls (plateaus), ensuring fine-tuned convergence.
+### 1. Sensor Integration
+The system stabilizes itself by fusion of data from three primary sensors enabled at the basic time step:
+* **Inertial Unit (IMU):** Provides Roll, Pitch, and Yaw angles for orientation feedback.
+* **Gyroscope:** Measures angular velocity to calculate the derivative (D) term of the PID.
+* **GPS:** Used for real-time Z-axis (Altitude) monitoring.
 
-## 📁 Dataset & Model Persistence
-*   **Data Source:** [Kaggle Digit Recognizer](https://www.kaggle.com/competitions/digit-recognizer). 
-*   **Model Weights:** The final trained state of the model is saved using `torch.save(model.state_dict(), 'model_weights.pth')`, allowing for easy deployment or further fine-tuning.
-*   **Evaluation:** Detailed analysis was performed using a `confusion_matrix` to identify specific digit-class confusion (e.g., distinguishing between 4 and 9).
+### 2. Altitude PD Controller (Vertical Control)
+A specialized vertical control logic was developed to manage take-off and hovering:
+* **Velocity Estimation:** The system calculates `vertical_velocity` by differentiating the altitude over time ($v = \Delta h / \Delta t$), acting as a "brake" to prevent overshooting.
+* **Error Saturation:** A `MAX_ALT_ERROR` of 1.5m is implemented to ensure the drone rises smoothly without aggressive surges.
+* **Base Lift:** A constant base thrust (68.5 units) is used as the equilibrium point, adjusted dynamically by the PD error.
+
+### 3. Attitude & Balance Controller
+To maintain a level flight, the drone uses Proportional-Derivative (PD) control for Roll and Pitch:
+* **P-Term ($K_p=30.0$):** Corrects the angle based on the current deviation from zero.
+* **D-Term ($K_d=2.0$):** Dampens the movement using the Gyro rate to prevent oscillations.
 
 ---
 
-### 💡 Engineering Insights & Tips:
-1. **Mathematical Tuning:** The constants ($K_p=30.0, K_d=2.0$) were derived through iterative testing to balance responsiveness and stability.
-2. **Velocity Estimation:** By calculating `(altitude - prev_altitude) / time_step`, the system effectively estimates vertical speed without a dedicated variometer sensor.
-3. **Hardware Compatibility:** The code is structured to be easily portable to real microcontrollers like **ESP32** or **Pixhawk** with minimal adjustments to the sensor API.
-4. **Visual Showcase:** The images above demonstrate the system's ability to maintain equilibrium despite the complex physics of four independent rotors.
+## 🛠 Motor Mixing & Actuation
+The controller translates high-level logic into individual motor velocities using a mixing matrix. This ensures that the altitude, roll, and pitch inputs are combined correctly for each of the four BLDC motors:
+
+| Motor | Position | Mixing Formula |
+| :--- | :--- | :--- |
+| **m1** | Front Left | `vertical + roll - pitch` |
+| **m2** | Front Right | `vertical - roll - pitch` |
+| **m3** | Rear Left | `vertical + roll + pitch` |
+| **m4** | Rear Right | `vertical - roll + pitch` |
+
+*Note: Motor directions are accounted for in the `setVelocity` commands to handle torque compensation (Yaw).*
+
+## 📈 Optimization & Safety Logic
+* **Saturation Management:** Motor inputs are clamped between 50.0 and 85.0. This prevents the motors from stalling during descent and ensures there is always "control headroom" for stabilization during high-speed climbs.
+* **Velocity-Based Braking:** By incorporating the `vertical_velocity` into the altitude input, the drone can "feel" its own momentum and slow down as it approaches the 20m target.
+
+---
+
+### 💡 Engineering Insights:
+1. **Mathematical Tuning:** The constants ($K_p=30.0, K_d=2.0$) were derived through iterative testing in Webots to achieve a "critically damped" response.
+2. **Dynamic Equilibrium:** The system uses 68.5 as the `vertical_input` base, which is the calculated power needed to counteract gravity for this specific drone mass.
+3. **Sensor Sampling:** All sensors are enabled using `self.time_step`, ensuring the PID loop runs in sync with the physics engine for maximum stability.
