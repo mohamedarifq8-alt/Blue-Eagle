@@ -11,12 +11,12 @@ The project focuses on building a robust flight controller for a quadcopter. As 
 
 #### 1. Drone Design (Blue Eagle)
 The customized model design within Webots, specifically configured with a custom Inertial Unit and Propeller physics.
-![Blue Eagle Design](./protos/Screenshot%202026-04-24%20031539.png)
-![Model Performance Metrics](Screenshot%202026-04-24%20031539.png)
+![Blue Eagle Design](https://github.com/mohamedarifq8-alt/Blue-Eagle/blob/main/Blue%20Eagle1/my_project9/protos/Screenshot%202026-04-24%20221930.png)  
+![Model Performance Metrics](https://github.com/mohamedarifq8-alt/Blue-Eagle/blob/main/Blue%20Eagle1/my_project9/protos/Screenshot%202026-04-24%20031539.png)
 
 #### 2. Autonomous Flight Test
 The drone maintains a stable hover at a target altitude of 20 meters, demonstrating the effectiveness of the PD control loop.
-![Blue Eagle In Flight](./protos/Screenshot%202026-05-02%20001558.png)
+![Blue Eagle In Flight](https://github.com/mohamedarifq8-alt/Blue-Eagle/blob/main/Blue%20Eagle1/my_project9/protos/Screenshot%202026-05-02%20001558.png)
 
 ---
 
